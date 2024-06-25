@@ -1,127 +1,109 @@
-USE [DwH]
-GO
-
-/****** Object:  StoredProcedure [dbo].[sp_Mapping_ACERTA_xlsx]    Script Date: 25/06/2024 15:06:53 ******/
+/*======================================================(0)======================================================*/
+-- Date: 13-Jun-2024
+-- Description: Stefan Damyanov - SP_MAPPING_ACERTA.xlsx
 SET ANSI_NULLS ON
 GO
 
 SET QUOTED_IDENTIFIER ON
 GO
+/*======================================================(1.0.0)======================================================*/
+-- Date: 13-Jun-2024
+-- Description: Stefan Damyanov - Procedure to handle mapping of ACERTA xlsx data
 
+CREATE PROCEDURE [dbo].[sp_Mapping_ACERTA_xlsx] AS
+BEGIN
 
+/*======================================================(1.0.0)======================================================*/
 
+/*======================================================(1.0.1)======================================================*/
+    -- Date: 13-Jun-2024
+    -- Description: Stefan Damyanov - Declare a variable to store the count of records
+    DECLARE @aantal int;
+/*======================================================(1.0.1)======================================================*/
 
+/*======================================================(1.0.2)======================================================*/
+    -- Date: 13-Jun-2024
+    -- Description: Stefan Damyanov - Count the number of records in the vMapping_ACERTA_xlsx view and assign it to @aantal
+    SELECT @aantal = count(*)
+    FROM [DWH].[dbo].[vMapping_ACERTA_xlsx]
+/*======================================================(1.0.2)======================================================*/
 
+/*======================================================(1.0.3)======================================================*/
+    -- Date: 13-Jun-2024
+    -- Description: Stefan Damyanov - Print the count of records
+    PRINT @aantal;
+/*======================================================(1.0.3)======================================================*/
 
+/*======================================================(1.0.4)======================================================*/
+    -- Date: 13-Jun-2024
+    -- Description: Stefan Damyanov - If there are no records, exit the procedure
+    IF @aantal = 0
+        RETURN;
+/*======================================================(1.0.4)======================================================*/
 
-/*==================================================(0)=============================================================================*/
---Description: Stefan Damyanov, 09-Nov-2023
---Description: oude methode, do not use: 	
---Description: I:\Documentation\Backups\Stored Perocedure\2022-10-17 sp_MappingAccerta_xlsx oude methode niet gebruiken.sql
+/*======================================================(1.0.5)======================================================*/
+    -- Date: 13-Jun-2024
+    -- Description: Stefan Damyanov - Drop the temporary table if it exists
+    DROP TABLE IF EXISTS #AcertaEmployeeMapping;
+/*======================================================(1.0.5)======================================================*/
 
-/*  118708 - KLX bestand 
+/*======================================================(1.0.6)======================================================*/
+    -- Date: 13-Jun-2024
+    -- Description: Stefan Damyanov - Create a temporary table with distinct employee mappings
+    SELECT DISTINCT 
+        T1.[Login] AS username, 
+        TRY_CAST(T1.PERSONEL_NUMBER AS int) AS Overeenkomstnummer, 
+        T2.EmployeeKey AS PERSON_ID
+    INTO #AcertaEmployeeMapping
+    FROM DWH.dbo.[vD_Employee_ETL] T1
+    INNER JOIN DWH.dbo.D_Employee T2      
+        ON T1.INJIXO_ID = T2.INJIXO_ID
+    WHERE T2.INJIXO_ID <> -1;
+/*======================================================(1.0.6)======================================================*/
 
-	match first on  RijksRegisterNr
+/*======================================================(1.0.7)======================================================*/
+    -- Date: 13-Jun-2024
+    -- Description: Stefan Damyanov - Update the MonthFlag based on the difference between LoadDate and current date
+    UPDATE T1
+    SET MonthFlag = IIF(
+        DATEPART(month, LoadDate) - DATEPART(month, GETDATE()) = 0, 'CurrentMonth', 
+        IIF(DATEPART(month, LoadDate) - DATEPART(month, GETDATE()) = -1, 'PrevMonth', 'Older')
+    )
+    FROM DWH.dbo.Mapping_ACERTA_xlsx T1;
+/*======================================================(1.0.7)======================================================*/
 
-	SOURCE		ExcelFiles.HR.vMapping_ACERTA_xlsx
+/*======================================================(1.0.8)======================================================*/
+    -- Date: 13-Jun-2024
+    -- Description: Stefan Damyanov - Delete records from Mapping_ACERTA_xlsx where MonthFlag is 'CurrentMonth'
+    DELETE FROM DWH.dbo.Mapping_ACERTA_xlsx
+    WHERE MonthFlag = 'CurrentMonth';
+/*======================================================(1.0.8)======================================================*/
 
-	TARGET:		CXL_Reporting.HR.Mapping_ACERTA_xlsx
-	
-	EXEC	[HR].[sp_Mapping_ACERTA_xlsx]		
-
-
-	Select * From CXL_Reporting.HR.Mapping_ACERTA_xlsx*/
-/*==================================================(0)============================================================================*/
-
-CREATE	PROCEDURE	[dbo].[sp_Mapping_ACERTA_xlsx]			AS
-
-	/*==================================================(1)============================================================================*/
-	--Description: Stefan Damyanov, 09-Nov-2023
-	--Description: Exit sp if source is empty
-	DECLARE		@aantal int;
-
-	SELECT @aantal =count(*)
-		FROM [DWH].[dbo].[vMapping_ACERTA_xlsx]
-
-
-		PRINT @aantal;
-
-	IF @aantal	= 0	
-		  
-    RETURN
-	/*==================================================(1)============================================================================*/
-
-
-	/*==================================================(2)============================================================================*/
-	--Description: Stefan Damyanov, 09-Nov-2023
-	--Description: Main part of procedure 
-
-
-		/*==================================================(2.1)============================================================================*/
-		--Description: Stefan Damyanov, 09-Nov-2023
-		--Description: Get Employee Mapping
-		--Description: TODO: Not ready because need to use tables in DWH 
-
-		DROP TABLE if exists #AcertaEmployeeMapping;
-
-		SELECT distinct T1.[Login] as username, 
-		                TRY_CAST(T1.PERSONEL_NUMBER  as int) AS Overeenkomstnummer, 
-						T2.EmployeeKey as PERSON_ID
-          INTO #AcertaEmployeeMapping					
-		  FROM DWH.dbo.[vD_Employee_ETL] T1 
-		 INNER JOIN	DWH.dbo.D_Employee T2      
-		    ON T1.INJIXO_ID = T2.INJIXO_ID
-		 WHERE 1 = 1				   
-		   AND T2.INJIXO_ID	<> -1;		  	
-		/*==================================================(2.1)============================================================================*/
-
-		/*==================================================(2.2)============================================================================*/
-		--Description: Stefan Damyanov, 09-Nov-2023
-		--Description: Determine current table MonthFlag :	'CurrentMonth', 'PrevMonth', 'Older'
-
-		UPDATE T1
-		   SET MonthFlag =	
-				IIF( DATEPART(month, LoadDate) - DATEPART(month, Getdate()) = 0, 'CurrentMonth', 
-				IIF( DATEPART(month, LoadDate) - DATEPART(month, Getdate()) = -1, 'PrevMonth',	'Older' ))
-		  FROM DWH.dbo.Mapping_ACERTA_xlsx T1;
-		/*==================================================(2.2)============================================================================*/
-
-		/*==================================================(2.3)============================================================================*/
-		--Description: Stefan Damyanov, 09-Nov-2023
-		--Description: delete & reload current month data
-
-		DELETE FROM	DWH.dbo.Mapping_ACERTA_xlsx
-		 WHERE MonthFlag = 'CurrentMonth';
-		/*==================================================(2.3)============================================================================*/
-
-		/*==================================================(2.4)============================================================================*/
-		--Description: Stefan Damyanov, 09-Nov-2023
-		--Description: select * from DWH.dbo.Mapping_ACERTA_xlsx where  naam like '%Gerardu%'
-
-		INSERT INTO	DWH.dbo.Mapping_ACERTA_xlsx	
-		        (Naam, 
-				 [Externe referentie], 
-				 Overeenkomstnummer, 
-				 PERSON_ID, 
-				 [Login], 
-				 LoadDate, 
-				 MonthFlag)
-		  SELECT Naam, 
-		         [Externe referentie], 
-				 Overeenkomstnummer, 
-				 PERSON_ID, 
-				 username AS [Login],
-				 LoadDate	=	cast(Getdate() as date), 
-				 MonthFlag	=	'CurrentMonth' 
-		    FROM (SELECT T1.*, 
-			             T2.username,  
-						 T2.PERSON_ID,	
-						 ROW_NUMBER() over( partition by T1.Overeenkomstnummer order by [Externe referentie]) RN
-		            FROM [DWH].[dbo].[vMapping_ACERTA_xlsx] T1	
-		            LEFT JOIN #AcertaEmployeeMapping T2
-		              ON T1.Overeenkomstnummer	= T2.Overeenkomstnummer
-		           WHERE T1.Naam  is not null) T
-		   WHERE RN = 1;
-		/*==================================================(2.1)============================================================================*/
-	/*==================================================(2)============================================================================*/
+/*======================================================(1.0.9)======================================================*/
+    -- Date: 13-Jun-2024
+    -- Description: Stefan Damyanov - Insert new records into Mapping_ACERTA_xlsx from the temporary table
+    INSERT INTO DWH.dbo.Mapping_ACERTA_xlsx
+        (Naam, [Externe referentie], Overeenkomstnummer, PERSON_ID, [Login], LoadDate, MonthFlag)
+    SELECT 
+        Naam, 
+        [Externe referentie], 
+        Overeenkomstnummer, 
+        PERSON_ID, 
+        username AS [Login],
+        LoadDate = CAST(GETDATE() AS date), 
+        MonthFlag = 'CurrentMonth'
+    FROM (
+        SELECT 
+            T1.*, 
+            T2.username,  
+            T2.PERSON_ID, 
+            ROW_NUMBER() OVER (PARTITION BY T1.Overeenkomstnummer ORDER BY [Externe referentie]) RN
+        FROM [DWH].[dbo].[vMapping_ACERTA_xlsx] T1
+        LEFT JOIN #AcertaEmployeeMapping T2
+            ON T1.Overeenkomstnummer = T2.Overeenkomstnummer
+        WHERE T1.Naam IS NOT NULL
+    ) T
+    WHERE RN = 1;
+END
 GO
+/*======================================================(1.0.9)======================================================*/
